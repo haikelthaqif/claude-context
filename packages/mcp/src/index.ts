@@ -21,8 +21,7 @@ import {
     ListToolsRequestSchema,
     CallToolRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
-import { Context } from "@zilliz/claude-context-core";
-import { MilvusVectorDatabase } from "@zilliz/claude-context-core";
+import { Context, JsonRepositoryRegistryStore, MilvusVectorDatabase, RepoContextService } from "@zilliz/claude-context-core";
 
 // Import our modular components
 import { createMcpConfig, logConfigurationSummary, showHelpMessage, ContextMcpConfig } from "./config.js";
@@ -30,6 +29,7 @@ import { createEmbeddingInstance, logEmbeddingProviderInfo } from "./embedding.j
 import { SnapshotManager } from "./snapshot.js";
 import { SyncManager } from "./sync.js";
 import { ToolHandlers } from "./handlers.js";
+import { RepositoryToolHandlers } from "./repository-tools.js";
 
 class ContextMcpServer {
     private server: Server;
@@ -37,6 +37,8 @@ class ContextMcpServer {
     private snapshotManager: SnapshotManager;
     private syncManager: SyncManager;
     private toolHandlers: ToolHandlers;
+    private repoContextService: RepoContextService;
+    private repositoryToolHandlers: RepositoryToolHandlers;
 
     constructor(config: ContextMcpConfig) {
         // Initialize MCP server
@@ -75,6 +77,9 @@ class ContextMcpServer {
         this.snapshotManager = new SnapshotManager();
         this.syncManager = new SyncManager(this.context, this.snapshotManager);
         this.toolHandlers = new ToolHandlers(this.context, this.snapshotManager);
+        const repositoryRegistryStore = new JsonRepositoryRegistryStore(process.env.CONTEXT_REPO_REGISTRY_PATH);
+        this.repoContextService = new RepoContextService(this.context, repositoryRegistryStore);
+        this.repositoryToolHandlers = new RepositoryToolHandlers(this.repoContextService);
 
         // Load existing codebase snapshot on startup
         this.snapshotManager.loadCodebaseSnapshot();
@@ -221,6 +226,88 @@ This tool is versatile and can be used before completing various tasks to retrie
                             required: ["path"]
                         }
                     },
+                    {
+                        name: "add_repository",
+                        description: "Register a local repository in the local registry, and optionally index it immediately.",
+                        inputSchema: {
+                            type: "object",
+                            properties: {
+                                path: {
+                                    type: "string",
+                                    description: "ABSOLUTE path to the repository directory."
+                                },
+                                indexNow: {
+                                    type: "boolean",
+                                    description: "Index the repository immediately after adding it.",
+                                    default: true
+                                },
+                                forceReindex: {
+                                    type: "boolean",
+                                    description: "Force full reindex if indexing is requested.",
+                                    default: false
+                                }
+                            },
+                            required: ["path"]
+                        }
+                    },
+                    {
+                        name: "list_repositories",
+                        description: "List repositories in the local registry with their current status.",
+                        inputSchema: {
+                            type: "object",
+                            properties: {
+                                refreshStatus: {
+                                    type: "boolean",
+                                    description: "Validate each repository index health before returning.",
+                                    default: false
+                                }
+                            }
+                        }
+                    },
+                    {
+                        name: "refresh_repository",
+                        description: "Refresh a repository context using incremental sync when possible with automatic full-reindex fallback on index inconsistencies.",
+                        inputSchema: {
+                            type: "object",
+                            properties: {
+                                repoId: {
+                                    type: "string",
+                                    description: "Repository id from list_repositories output."
+                                },
+                                path: {
+                                    type: "string",
+                                    description: "ABSOLUTE repository path."
+                                },
+                                forceFullReindex: {
+                                    type: "boolean",
+                                    description: "Force full reindex instead of incremental refresh.",
+                                    default: false
+                                },
+                                allowFullReindexFallback: {
+                                    type: "boolean",
+                                    description: "Allow automatic fallback to full reindex when incremental refresh detects index inconsistency.",
+                                    default: true
+                                }
+                            }
+                        }
+                    },
+                    {
+                        name: "delete_repository",
+                        description: "Delete repository context from Milvus and remove it from local registry.",
+                        inputSchema: {
+                            type: "object",
+                            properties: {
+                                repoId: {
+                                    type: "string",
+                                    description: "Repository id from list_repositories output."
+                                },
+                                path: {
+                                    type: "string",
+                                    description: "ABSOLUTE repository path."
+                                }
+                            }
+                        }
+                    },
                 ]
             };
         });
@@ -238,6 +325,14 @@ This tool is versatile and can be used before completing various tasks to retrie
                     return await this.toolHandlers.handleClearIndex(args);
                 case "get_indexing_status":
                     return await this.toolHandlers.handleGetIndexingStatus(args);
+                case "add_repository":
+                    return await this.repositoryToolHandlers.handleRepoAdd(args);
+                case "list_repositories":
+                    return await this.repositoryToolHandlers.handleRepoList(args);
+                case "refresh_repository":
+                    return await this.repositoryToolHandlers.handleRepoRefresh(args);
+                case "delete_repository":
+                    return await this.repositoryToolHandlers.handleRepoDelete(args);
 
                 default:
                     throw new Error(`Unknown tool: ${name}`);
@@ -298,3 +393,7 @@ main().catch((error) => {
     console.error("Fatal error:", error);
     process.exit(1);
 });
+
+
+
+

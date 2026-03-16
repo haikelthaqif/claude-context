@@ -34,6 +34,7 @@ export interface PluginConfig {
     splitterProvider?: SplitterProviderConfig;
     milvusConfig?: MilvusWebConfig;
     splitterConfig?: SplitterConfig;
+    repoRegistryPath?: string;
 }
 
 type FieldDefinition = {
@@ -339,6 +340,15 @@ export class ConfigManager {
             ssl: webConfig.address.startsWith('https://'), // Enable SSL if https address
             // username and password are usually handled via token, so not set
         };
+    }
+
+    /**
+     * Get optional local repo registry path override
+     */
+    getRepoRegistryPath(): string | undefined {
+        const config = vscode.workspace.getConfiguration(ConfigManager.CONFIG_KEY);
+        const repoRegistryPath = config.get<string>('repoRegistry.path');
+        return repoRegistryPath && repoRegistryPath.trim().length > 0 ? repoRegistryPath.trim() : undefined;
     }
 
     /**

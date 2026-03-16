@@ -45,6 +45,31 @@
                 "command": "semanticCodeSearch.clearIndex",
                 "title": "Clear Index",
                 "category": "Semantic Code Search"
+            },
+            {
+                "command": "semanticCodeSearch.addRepository",
+                "title": "Add Repository",
+                "category": "Repository Context"
+            },
+            {
+                "command": "semanticCodeSearch.refreshRepositoryList",
+                "title": "Refresh Repository List",
+                "category": "Repository Context"
+            },
+            {
+                "command": "semanticCodeSearch.selectRepository",
+                "title": "Select Repository",
+                "category": "Repository Context"
+            },
+            {
+                "command": "semanticCodeSearch.refreshRepository",
+                "title": "Refresh Repository Context",
+                "category": "Repository Context"
+            },
+            {
+                "command": "semanticCodeSearch.deleteRepository",
+                "title": "Delete Repository Context",
+                "category": "Repository Context"
             }
         ],
         "menus": {
@@ -53,6 +78,35 @@
                     "command": "semanticCodeSearch.semanticSearch",
                     "when": "editorHasSelection",
                     "group": "navigation@100"
+                }
+            ],
+            "view/title": [
+                {
+                    "command": "semanticCodeSearch.addRepository",
+                    "when": "view == repositoryManagerView",
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "semanticCodeSearch.refreshRepositoryList",
+                    "when": "view == repositoryManagerView",
+                    "group": "navigation@2"
+                }
+            ],
+            "view/item/context": [
+                {
+                    "command": "semanticCodeSearch.selectRepository",
+                    "when": "view == repositoryManagerView && viewItem == managedRepository",
+                    "group": "inline@1"
+                },
+                {
+                    "command": "semanticCodeSearch.refreshRepository",
+                    "when": "view == repositoryManagerView && viewItem == managedRepository",
+                    "group": "inline@2"
+                },
+                {
+                    "command": "semanticCodeSearch.deleteRepository",
+                    "when": "view == repositoryManagerView && viewItem == managedRepository",
+                    "group": "inline@3"
                 }
             ]
         },
@@ -71,6 +125,10 @@
                     "id": "semanticSearchView",
                     "name": "Semantic Search",
                     "type": "webview"
+                },
+                {
+                    "id": "repositoryManagerView",
+                    "name": "Repository Contexts"
                 }
             ]
         },
@@ -157,6 +215,11 @@
                     "minimum": 0,
                     "maximum": 1000,
                     "description": "Number of overlapping characters between consecutive chunks"
+                },
+                "semanticCodeSearch.repoRegistry.path": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Optional override for local repository registry file path. Leave empty to use ~/.context/repo-registry.json"
                 }
             }
         }
@@ -199,3 +262,4 @@
     },
     "license": "MIT"
 }
+

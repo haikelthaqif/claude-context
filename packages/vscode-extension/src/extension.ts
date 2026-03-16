@@ -5,7 +5,8 @@ import { SearchCommand } from './commands/searchCommand';
 import { IndexCommand } from './commands/indexCommand';
 import { SyncCommand } from './commands/syncCommand';
 import { ConfigManager } from './config/configManager';
-import { Context, OpenAIEmbedding, VoyageAIEmbedding, GeminiEmbedding, MilvusRestfulVectorDatabase, AstCodeSplitter, LangChainCodeSplitter, SplitterType } from '@zilliz/claude-context-core';
+import { RepositoryManagerProvider } from './repo-manager/repositoryManagerProvider';
+import { Context, JsonRepositoryRegistryStore, MilvusRestfulVectorDatabase, AstCodeSplitter, LangChainCodeSplitter, RepoContextService, SplitterType } from '@zilliz/claude-context-core';
 import { envManager } from '@zilliz/claude-context-core';
 
 let semanticSearchProvider: SemanticSearchViewProvider;
@@ -14,6 +15,8 @@ let indexCommand: IndexCommand;
 let syncCommand: SyncCommand;
 let configManager: ConfigManager;
 let codeContext: Context;
+let repoContextService: RepoContextService;
+let repositoryManagerProvider: RepositoryManagerProvider;
 let autoSyncDisposable: vscode.Disposable | null = null;
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -24,12 +27,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Initialize shared context instance with embedding configuration
     codeContext = createContextWithConfig(configManager);
+    repoContextService = createRepoContextService(configManager, codeContext);
 
     // Initialize providers and commands
     searchCommand = new SearchCommand(codeContext);
     indexCommand = new IndexCommand(codeContext);
     syncCommand = new SyncCommand(codeContext);
     semanticSearchProvider = new SemanticSearchViewProvider(context.extensionUri, searchCommand, indexCommand, syncCommand, configManager);
+    repositoryManagerProvider = new RepositoryManagerProvider(repoContextService);
 
     // Register command handlers
     const disposables = [
@@ -40,18 +45,29 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
+        // Register repo manager tree provider
+        vscode.window.registerTreeDataProvider(RepositoryManagerProvider.viewType, repositoryManagerProvider),
+
         // Listen for configuration changes
         vscode.workspace.onDidChangeConfiguration((event) => {
-            if (event.affectsConfiguration('semanticCodeSearch.embeddingProvider') ||
+            const affectsCoreConfig = event.affectsConfiguration('semanticCodeSearch.embeddingProvider') ||
                 event.affectsConfiguration('semanticCodeSearch.milvus') ||
                 event.affectsConfiguration('semanticCodeSearch.splitter') ||
-                event.affectsConfiguration('semanticCodeSearch.autoSync')) {
+                event.affectsConfiguration('semanticCodeSearch.autoSync');
+
+            if (affectsCoreConfig) {
                 console.log('Context configuration changed, reloading...');
                 reloadContextConfiguration();
             }
+
+            if (event.affectsConfiguration('semanticCodeSearch.repoRegistry.path')) {
+                console.log('Repo registry path changed, reloading repo manager service...');
+                repoContextService = createRepoContextService(configManager, codeContext);
+                repositoryManagerProvider.setRepoContextService(repoContextService);
+            }
         }),
 
-        // Register commands
+        // Existing commands
         vscode.commands.registerCommand('semanticCodeSearch.semanticSearch', () => {
             // Get selected text from active editor
             const editor = vscode.window.activeTextEditor;
@@ -60,7 +76,14 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
         vscode.commands.registerCommand('semanticCodeSearch.indexCodebase', () => indexCommand.execute()),
         vscode.commands.registerCommand('semanticCodeSearch.clearIndex', () => indexCommand.clearIndex()),
-        vscode.commands.registerCommand('semanticCodeSearch.reloadConfiguration', () => reloadContextConfiguration())
+        vscode.commands.registerCommand('semanticCodeSearch.reloadConfiguration', () => reloadContextConfiguration()),
+
+        // Repository manager commands
+        vscode.commands.registerCommand('semanticCodeSearch.addRepository', () => repositoryManagerProvider.addRepository()),
+        vscode.commands.registerCommand('semanticCodeSearch.refreshRepositoryList', () => repositoryManagerProvider.refresh()),
+        vscode.commands.registerCommand('semanticCodeSearch.selectRepository', (item) => repositoryManagerProvider.selectRepository(item)),
+        vscode.commands.registerCommand('semanticCodeSearch.refreshRepository', (item) => repositoryManagerProvider.refreshRepository(item)),
+        vscode.commands.registerCommand('semanticCodeSearch.deleteRepository', (item) => repositoryManagerProvider.deleteRepository(item))
     ];
 
     context.subscriptions.push(...disposables);
@@ -70,6 +93,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Run initial sync on startup
     runInitialSync();
+
+    // Warm up repository tree state
+    repositoryManagerProvider.refresh();
 
     // Show status bar item
     const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -181,6 +207,12 @@ function createContextWithConfig(configManager: ConfigManager): Context {
     }
 }
 
+function createRepoContextService(configManager: ConfigManager, context: Context): RepoContextService {
+    const registryPath = configManager.getRepoRegistryPath();
+    const registryStore = new JsonRepositoryRegistryStore(registryPath);
+    return new RepoContextService(context, registryStore);
+}
+
 function reloadContextConfiguration() {
     console.log('Reloading Context configuration...');
 
@@ -229,6 +261,9 @@ function reloadContextConfiguration() {
         searchCommand.updateContext(codeContext);
         indexCommand.updateContext(codeContext);
         syncCommand.updateContext(codeContext);
+
+        // Refresh repository statuses after context update
+        repositoryManagerProvider.refresh();
 
         // Restart auto-sync if it was enabled
         setupAutoSync();

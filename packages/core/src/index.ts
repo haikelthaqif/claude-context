@@ -5,3 +5,5 @@ export * from './types';
 export * from './context';
 export * from './sync/synchronizer';
 export * from './utils';
+export * from './repo-registry';
+export * from './repo-context';
