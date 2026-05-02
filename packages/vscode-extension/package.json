@@ -26,7 +26,13 @@
     ],
     "icon": "resources/icon.png",
     "activationEvents": [
-        "onStartupFinished"
+        "onStartupFinished",
+        "onView:repositoryManagerView",
+        "onCommand:semanticCodeSearch.addRepository",
+        "onCommand:semanticCodeSearch.refreshRepositoryList",
+        "onCommand:semanticCodeSearch.selectRepository",
+        "onCommand:semanticCodeSearch.refreshRepository",
+        "onCommand:semanticCodeSearch.deleteRepository"
     ],
     "main": "./dist/extension.js",
     "contributes": {

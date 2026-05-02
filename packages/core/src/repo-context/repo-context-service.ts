@@ -95,10 +95,24 @@ export class RepoContextService {
             repository = await this.registryStore.saveRepository(started);
 
             try {
-                const hasIndex = await this.context.hasIndex(repository.path);
+                let hasIndex = false;
+                let indexCheckError: Error | undefined;
                 const allowFallback = options.allowFullReindexFallback !== false;
                 const forceFullReindex = options.forceFullReindex === true;
                 let incrementalFailureMessage: string | undefined;
+
+                try {
+                    hasIndex = await this.context.hasIndex(repository.path);
+                } catch (error: any) {
+                    indexCheckError = error instanceof Error ? error : new Error(String(error));
+                    console.warn(`[RepoContextService] Failed to check index existence for ${repository.path}:`, indexCheckError.message);
+                    if (allowFallback) {
+                        hasIndex = false;
+                        incrementalFailureMessage = this.getErrorMessage(indexCheckError);
+                    } else {
+                        throw indexCheckError;
+                    }
+                }
 
                 if (!forceFullReindex && hasIndex) {
                     try {
@@ -135,6 +149,10 @@ export class RepoContextService {
                 }
 
                 const shouldForceReindex = forceFullReindex || (hasIndex && incrementalFailureMessage !== undefined);
+                if (indexCheckError && !hasIndex) {
+                    console.log(`[RepoContextService] Falling back to full reindex for ${repository.path} because index existence check failed.`);
+                }
+
                 const fullIndexStats = await this.context.indexCodebase(
                     repository.path,
                     undefined,
