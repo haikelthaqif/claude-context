@@ -3,7 +3,7 @@
     "displayName": "Semantic Code Search",
     "publisher": "zilliz",
     "description": "Code indexing and semantic search (built by Claude Context)",
-    "version": "0.1.6",
+    "version": "0.1.13",
     "private": true,
     "engines": {
         "vscode": "^1.74.0"
@@ -231,9 +231,9 @@
         }
     },
     "scripts": {
-        "vscode:prepublish": "pnpm run webpack",
-        "compile": "pnpm clean && tsc --build --force && node copy-assets.js",
-        "webpack": "pnpm clean && webpack --mode production && node copy-assets.js",
+        "vscode:prepublish": "npm run webpack",
+        "compile": "npm run clean && tsc --build --force && node copy-assets.js",
+        "webpack": "npm run clean && webpack --mode production && node copy-assets.js",
         "webpack:dev": "webpack --mode development && node copy-assets.js",
         "watch": "tsc -watch -p ./",
         "clean": "rimraf dist",

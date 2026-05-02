@@ -181,7 +181,12 @@ export class MilvusRestfulVectorDatabase implements VectorDatabase {
             return result;
         } catch (error) {
             console.error(`[MilvusRestfulDB] Milvus REST API request failed:`, error);
-            throw error;
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(
+                `Unable to reach Milvus REST API at ${url}. ` +
+                `Check that local Milvus is running and that semanticCodeSearch.milvus.address is correct. ` +
+                `Cause: ${message}`
+            );
         }
     }
 

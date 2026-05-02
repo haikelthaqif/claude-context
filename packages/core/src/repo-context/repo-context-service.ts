@@ -42,7 +42,8 @@ export class RepoContextService {
 
         const refreshed = await this.refreshRepository({ repoId: repository.id }, {
             forceFullReindex: options.forceReindex,
-            allowFullReindexFallback: true
+            allowFullReindexFallback: true,
+            progressCallback: options.progressCallback
         });
         return refreshed.repository;
     }
@@ -116,7 +117,10 @@ export class RepoContextService {
 
                 if (!forceFullReindex && hasIndex) {
                     try {
-                        const incrementalSyncStats = await this.context.reindexByChange(repository.path);
+                        const incrementalSyncStats = await this.context.reindexByChange(
+                            repository.path,
+                            options.progressCallback
+                        );
                         const indexed = this.applyStatus(repository, 'indexed');
                         indexed.indexedFiles = this.getUpdatedIndexedFileCount(repository.indexedFiles, incrementalSyncStats);
                         indexed.lastIndexedAt = new Date().toISOString();
@@ -155,7 +159,7 @@ export class RepoContextService {
 
                 const fullIndexStats = await this.context.indexCodebase(
                     repository.path,
-                    undefined,
+                    options.progressCallback,
                     shouldForceReindex
                 );
 

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ManagedRepository, RefreshRepositoryResult, RepoContextService } from '@zilliz/claude-context-core';
+import { ManagedRepository, RefreshRepositoryResult, RepoContextService, RepositoryProgress } from '@zilliz/claude-context-core';
 
 class RepositoryTreeItem extends vscode.TreeItem {
     readonly repository: ManagedRepository;
@@ -139,11 +139,28 @@ export class RepositoryManagerProvider implements vscode.TreeDataProvider<Reposi
                 location: vscode.ProgressLocation.Notification,
                 title: indexNow ? 'Adding and indexing repository' : 'Adding repository',
                 cancellable: false
-            }, async () => {
+            }, async (progress) => {
+                const reportProgress = this.createProgressReporter(progress);
+                reportProgress({
+                    phase: indexNow ? 'Adding repository...' : 'Saving repository...',
+                    current: 0,
+                    total: 100,
+                    percentage: 0
+                });
+
                 repository = await this.repoContextService.addRepository(targetPath, {
                     indexNow,
-                    forceReindex: false
+                    forceReindex: false,
+                    progressCallback: indexNow ? reportProgress : undefined
                 });
+
+                reportProgress({
+                    phase: indexNow ? 'Indexing complete' : 'Repository added',
+                    current: 100,
+                    total: 100,
+                    percentage: 100
+                });
+
                 if (repository) {
                     await this.repoContextService.selectRepository({ repoId: repository.id });
                 }
@@ -172,14 +189,30 @@ export class RepositoryManagerProvider implements vscode.TreeDataProvider<Reposi
                 location: vscode.ProgressLocation.Notification,
                 title: 'Refreshing repository context',
                 cancellable: false
-            }, async () => {
+            }, async (progress) => {
+                const reportProgress = this.createProgressReporter(progress);
+                reportProgress({
+                    phase: 'Starting refresh...',
+                    current: 0,
+                    total: 100,
+                    percentage: 0
+                });
+
                 result = await this.repoContextService.refreshRepository(
                     { repoId: repository.id },
                     {
                         forceFullReindex: false,
-                        allowFullReindexFallback: true
+                        allowFullReindexFallback: true,
+                        progressCallback: reportProgress
                     }
                 );
+
+                reportProgress({
+                    phase: 'Refresh complete',
+                    current: 100,
+                    total: 100,
+                    percentage: 100
+                });
             });
 
             this.refresh();
@@ -262,5 +295,24 @@ export class RepositoryManagerProvider implements vscode.TreeDataProvider<Reposi
         );
 
         return selected?.repository;
+    }
+
+    private createProgressReporter(progress: vscode.Progress<{ increment?: number; message?: string }>) {
+        let lastPercentage = 0;
+
+        return (progressInfo: RepositoryProgress) => {
+            const nextPercentage = Math.max(0, Math.min(100, Math.round(progressInfo.percentage || 0)));
+            const increment = Math.max(0, nextPercentage - lastPercentage);
+            lastPercentage = Math.max(lastPercentage, nextPercentage);
+
+            progress.report({
+                increment,
+                message: `${nextPercentage}% - ${progressInfo.phase}`
+            });
+
+            if (nextPercentage === 100) {
+                this.refresh();
+            }
+        };
     }
 }

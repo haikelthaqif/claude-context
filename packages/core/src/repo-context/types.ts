@@ -1,13 +1,22 @@
 import { ManagedRepository } from '../repo-registry/types';
 
+export interface RepositoryProgress {
+    phase: string;
+    current: number;
+    total: number;
+    percentage: number;
+}
+
 export interface AddRepositoryOptions {
     indexNow?: boolean;
     forceReindex?: boolean;
+    progressCallback?: (progress: RepositoryProgress) => void;
 }
 
 export interface RefreshRepositoryOptions {
     forceFullReindex?: boolean;
     allowFullReindexFallback?: boolean;
+    progressCallback?: (progress: RepositoryProgress) => void;
 }
 
 export interface ListRepositoriesOptions {
